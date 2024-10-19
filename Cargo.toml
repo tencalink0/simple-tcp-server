@@ -1,0 +1,11 @@
+[package]
+name = "b_glossa"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+local-ip-address = "0.5.1"
+sha2 = "0.10"
+
+[lib]
+crate-type = ["lib"]
