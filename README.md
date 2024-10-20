@@ -1,6 +1,6 @@
 # simple-tcp-server
 A basic tcp server which returns html templates dynamically (from /public)<br>
-This was build solely as a proof-of-concept but also is being used for b_glossa
+This was build solely as a proof-of-concept but also is being used for [b_glossa](https://github.com/bev29rr/b_glossa)
 
 ## How to setup
 1. Download all server files into desired folders
