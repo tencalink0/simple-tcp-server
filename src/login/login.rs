@@ -1,4 +1,4 @@
-use sha2::{Sha256, Digest};
+//use crate::login::encryptor::Encryptor;
 
 pub struct Login {
     pub username: String,

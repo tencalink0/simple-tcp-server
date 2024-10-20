@@ -9,6 +9,7 @@ use local_ip_address::local_ip;
 use server::response::Response;
 use tools::filesystem::FileSystem;
 use login::login::Login;
+use login::encrypt::{Keys, Encrypt, Decrypt};
 
 pub enum State {
     Off, 
@@ -29,7 +30,7 @@ impl Server {
         let port = match port_raw {
             Some(num) => num,
             None => 7878
-        };
+        };        
         Self {
             filesystem,
             ip,
