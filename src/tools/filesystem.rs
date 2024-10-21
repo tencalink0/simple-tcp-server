@@ -43,7 +43,7 @@ impl FileSystem {
         };
     }
 
-    fn check_file_availability(string_path: String, file_dir: String) -> Option<PathBuf> {
+    pub fn check_file_availability(string_path: String, file_dir: String) -> Option<PathBuf> {
         let current_dir = env::current_dir();
         let path: PathBuf = match current_dir {
             Ok(dir) => dir.join(file_dir).join(&string_path),

@@ -1,6 +1,7 @@
 mod tools;
 mod server;
 mod login;
+mod database;
 
 use std::net::{TcpListener, TcpStream, IpAddr, SocketAddr};
 use std::io::prelude::*;
@@ -10,6 +11,7 @@ use server::response::Response;
 use tools::filesystem::FileSystem;
 use login::login::Login;
 use login::encrypt::{Keys, Encrypt, Decrypt};
+use database::db::Database;
 
 pub enum State {
     Off, 
@@ -19,6 +21,7 @@ pub enum State {
 
 pub struct Server {
     filesystem: FileSystem,
+    database: Database,
     pub ip: IpAddr,
     pub port: u16,
     pub state: State,
@@ -31,8 +34,10 @@ impl Server {
             Some(num) => num,
             None => 7878
         };        
+        let database = Database::connect(false);
         Self {
             filesystem,
+            database,
             ip,
             port,
             state: State::Off
@@ -72,12 +77,15 @@ impl Server {
             Some(conn_info) => {
                 if conn_info.r#type == "GET".to_string() {
                     if conn_info.method == "HTTP" {
-                        if conn_info.file.as_str() == "" {
+                        let this_conn_str = conn_info.file.as_str();
+                        if this_conn_str == "" {
                             response.format_file(
                                 String::from("index.html")
                             );
-                        }
-                        else {
+                        } else if this_conn_str == "/login" {
+                            //self.database;
+                            println!("Hello");
+                        } else {
                             response.format_file(
                                 conn_info.file
                             );
