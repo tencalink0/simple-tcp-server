@@ -2,3 +2,5 @@
 /public
 /static
 /db
+/db/*
+!/db/.gitignore
