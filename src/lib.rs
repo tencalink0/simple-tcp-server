@@ -78,12 +78,16 @@ impl Server {
                 if conn_info.r#type == "GET".to_string() {
                     if conn_info.method == "HTTP" {
                         let this_conn_str = conn_info.file.as_str();
+                        
                         if this_conn_str == "" {
                             response.format_file(
                                 String::from("index.html")
                             );
-                        } else if this_conn_str == "/login" {
-                            //self.database;
+                        } else if this_conn_str == "login" {
+                            response.format_file(
+                                String::from("index.html")
+                            );
+                            self.database.get_data();
                             println!("Hello");
                         } else {
                             response.format_file(

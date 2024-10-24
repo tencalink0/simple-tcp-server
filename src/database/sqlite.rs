@@ -1,8 +1,6 @@
 use rusqlite::{Connection, Result, Error};
+use rusqlite::types::FromSql;
 
-use crate::database::db::DatabaseType;
-
-use super::{db::Database, textfile::TextFile};
 use crate::tools::filesystem::FileSystem;
 
 pub struct Sqlite;
@@ -52,36 +50,59 @@ impl Sqlite {
             Err(_) => false, 
         };
         if status {
-            
+            if Self::execute(
+                &conn, 
+                "CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT NOT NULL,
+                    password TEXT NOT NULL,
+                    name TEXT NOT NULL
+                )",
+                []
+            ) {
+                return Self::execute(
+                    &conn,
+                    "INSERT INTO users (name, username, password) VALUES (?1, ?2, ?3)",
+                    &["Admin", "admin", "admin123"],
+                )
+            }
         }
-        status
+        false
     }
     
-    pub fn do_something(conn: &DatabaseType) -> bool {
-        /* 
-        match conn {
-            DatabaseType::Sqlite(conn) => {
-                let mut stmt = conn.prepare("SELECT id, name FROM users");
-                match stmt {
-                    Ok(ref mut stmt) => {
-                        let user_iter = stmt.query_map([], |row| {
-                            Ok((row.get::<_, i32>(0)?, row.get::<_, String>(1)?))
-                        });
-                        for user in user_iter {
-                            println!("Found user {:?}", user);
-                        }
-                    },
-                    Err(_) => {
-                        let user_iter = "";
-                    }
-                }
-                true
-            },
-            _ => {
-                false
-            },
+    pub fn execute<P: rusqlite::Params>(conn: &Connection, sql: &str, params: P) -> bool {
+        let execution_result = conn.execute(
+            sql,
+            params
+        );
+
+        if execution_result.is_err() {
+            return false;
         }
-        */
-        false
+        true
+    }
+
+    pub fn retrieve<T>(conn: &Connection, sql: &str) -> Result<Vec<Vec<T>>>
+    where
+    T: FromSql + Send + 'static,
+    {
+        let mut stmt = conn.prepare(sql)?;
+
+        let rows = stmt.query_map([], |row| {
+            let mut result_row = Vec::new();
+            let column_count = row.as_ref().column_names().len(); 
+
+            for i in 0..column_count {
+                result_row.push(row.get(i)?);
+            }
+            Ok(result_row)
+        })?;
+
+        let mut results = Vec::new();
+        for row in rows {
+            results.push(row?);
+        }
+
+        Ok(results)
     }
 }
