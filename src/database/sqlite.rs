@@ -82,7 +82,7 @@ impl Sqlite {
         true
     }
 
-    pub fn retrieve<T>(conn: &Connection, sql: &str) -> Result<Vec<Vec<T>>>
+    pub fn retrieve<T>(conn: &Connection, sql: &str) -> Result<Vec<T>>
     where
     T: FromSql + Send + 'static,
     {
@@ -100,7 +100,8 @@ impl Sqlite {
 
         let mut results = Vec::new();
         for row in rows {
-            results.push(row?);
+            let row_data: Vec<T> = row?;
+            results.extend(row_data);
         }
 
         Ok(results)

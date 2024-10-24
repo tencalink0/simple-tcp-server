@@ -87,7 +87,14 @@ impl Server {
                             response.format_file(
                                 String::from("index.html")
                             );
-                            self.database.get_data();
+                            match self.database.get_data::<String>("SELECT username, password FROM users") {
+                                Ok(data) => {
+                                    for value in data {
+                                        println!("Data {:?}", value)
+                                    }
+                                },
+                                Err(_) => ()
+                            }
                             println!("Hello");
                         } else {
                             response.format_file(

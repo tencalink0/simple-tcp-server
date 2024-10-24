@@ -1,4 +1,5 @@
 use std::{error::Error, path::PathBuf};
+use rusqlite::types::FromSql;
 
 use crate::database::sqlite::Sqlite;
 use rusqlite::Connection;
@@ -47,22 +48,25 @@ impl Database {
         }
     }
 
-    pub fn get_data(&self) {
+    pub fn get_data<T>(&self, sql: &str) -> Result<Vec<T>, Box<dyn Error>> 
+    where
+        T: FromSql + Send + 'static,
+    {
         match &self.conn {
             DatabaseType::Sqlite(conn) => {
-                match Sqlite::retrieve::<String>(&conn, "SELECT username FROM users") {
+                match Sqlite::retrieve::<T>(&conn, sql) {
                     Ok(values) => {
-                        for value in values {
-                            println!("value {:?}",value);
-                        }
+                        Ok(values)
                     }
                     Err(e) => {
                         println!("Failed {}", e);
+                        Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)))
                     }
                 }
             },
             _ => {
                 println!("Failed");
+                Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Failed")))
             }
         }   
     }
