@@ -9,10 +9,33 @@ use super::textfile::TextFile;
 
 pub trait DatabaseConnection {
     fn open() -> bool;
-    fn add() -> bool;
+    fn add(query: AQuery) -> bool;
     fn remove() -> bool;
-    fn get() -> Option<String>;
+    fn get(query: GQuery) -> Option<String>;
     fn wipe() -> bool;
+}
+
+pub enum AQuery {
+    User {
+        username: String,
+        password: String,
+        name: Option<String>,
+        email: Option<String>,
+        site: Option<String>,
+    }, // username, password, opt<name>, opt<email>, opt<site>
+    UserPing {
+        username: String,
+        site: String,
+    } // username, site
+}
+
+pub enum GQuery {
+    Password {
+        username: String,
+    }, // username -> [password]
+    UserData {
+        username: String,
+    } // username -> [name, email]
 }
 
 pub enum DatabaseType {
@@ -48,7 +71,7 @@ impl Database {
         }
     }
 
-    pub fn get_data<T>(&self, sql: &str) -> Result<Vec<T>, Box<dyn Error>> 
+    pub fn get_data<T>(&self, sql: &str) -> Result<Vec<Vec<T>>, Box<dyn Error>> 
     where
         T: FromSql + Send + 'static,
     {

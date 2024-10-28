@@ -2,6 +2,7 @@ use rusqlite::{Connection, Result, Error};
 use rusqlite::types::FromSql;
 
 use crate::tools::filesystem::FileSystem;
+use crate::database::db::{AQuery, GQuery};
 
 pub struct Sqlite;
 
@@ -53,17 +54,18 @@ impl Sqlite {
             if Self::execute(
                 &conn, 
                 "CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT NOT NULL,
-                    password TEXT NOT NULL,
-                    name TEXT NOT NULL
+                    username TEXT PRIMARY KEY,
+                    password TEXT,
+                    name TEXT,
+                    email TEXT NOT NULL,
+                    site TEXT 
                 )",
                 []
             ) {
                 return Self::execute(
                     &conn,
-                    "INSERT INTO users (name, username, password) VALUES (?1, ?2, ?3)",
-                    &["Admin", "admin", "admin123"],
+                    "INSERT INTO users (username, password, name) VALUES (?1, ?2, ?3)",
+                    &["admin", "admin123", "Admin"],
                 )
             }
         }
@@ -82,28 +84,59 @@ impl Sqlite {
         true
     }
 
-    pub fn retrieve<T>(conn: &Connection, sql: &str) -> Result<Vec<T>>
+    pub fn retrieve<T>(conn: &Connection, sql: &str) -> Result<Vec<Vec<T>>>
     where
-    T: FromSql + Send + 'static,
+        T: FromSql + Send + 'static,
     {
         let mut stmt = conn.prepare(sql)?;
 
         let rows = stmt.query_map([], |row| {
-            let mut result_row = Vec::new();
-            let column_count = row.as_ref().column_names().len(); 
+            let column_count = row.as_ref().column_names().len();
+            let mut result_row = Vec::with_capacity(column_count); 
 
             for i in 0..column_count {
-                result_row.push(row.get(i)?);
+                result_row.push(row.get(i)?); 
             }
             Ok(result_row)
         })?;
 
-        let mut results = Vec::new();
+        let mut results = Vec::new(); 
         for row in rows {
             let row_data: Vec<T> = row?;
-            results.extend(row_data);
+            results.push(row_data); 
         }
 
-        Ok(results)
+        Ok(results) 
+    }
+
+    fn convertAToSql(query: &AQuery) -> String {
+        match query {
+            AQuery::User { 
+                username, 
+                password, 
+                name, 
+                email, 
+                site 
+            } => {
+                format!("INSERT INTO ")
+            },
+            AQuery::UserPing { 
+                username, 
+                site 
+            } => {
+                format!("")
+            }
+        }
+    }
+
+    fn convertGToSql(query: &GQuery) -> String {
+        match query {
+            GQuery::Password { username } => {
+                String::from("Select password From users")
+            },
+            GQuery::UserData { username } => {
+                String::from("SELECT password FROM users")
+            }
+        }
     }
 }
