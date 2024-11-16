@@ -11,7 +11,7 @@ use server::response::Response;
 use tools::filesystem::FileSystem;
 use login::login::Login;
 use login::encrypt::{Keys, Encrypt, Decrypt};
-use database::db::Database;
+use database::db::{Database, AQuery, GQuery};
 
 pub enum State {
     Off, 
@@ -35,6 +35,7 @@ impl Server {
             None => 7878
         };        
         let database = Database::connect(false);
+        println!("Database {:?}", database);
         Self {
             filesystem,
             database,
@@ -87,13 +88,16 @@ impl Server {
                             response.format_file(
                                 String::from("index.html")
                             );
-                            match self.database.get_data::<String>("SELECT username, password FROM users") {
+                            let query = GQuery::Password { username: (String::from("admin")) };
+                            match self.database.get::<String>(&query) {
                                 Ok(data) => {
                                     for value in data {
                                         println!("Data {:?}", value)
                                     }
                                 },
-                                Err(_) => ()
+                                Err(e) => {
+                                    println!("Error: {}", e);
+                                }
                             }
                             println!("Hello");
                         } else {

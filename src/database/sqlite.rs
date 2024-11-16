@@ -26,10 +26,6 @@ impl Sqlite {
 
     }
 
-    pub fn add() {
-
-    }
-
     pub fn init(conn: &Connection) -> bool {
         let table_names: Result<Vec<String>> = conn
         .prepare("SELECT name FROM sqlite_master WHERE type='table'")
@@ -57,7 +53,7 @@ impl Sqlite {
                     username TEXT PRIMARY KEY,
                     password TEXT,
                     name TEXT,
-                    email TEXT NOT NULL,
+                    email TEXT,
                     site TEXT 
                 )",
                 []
@@ -71,8 +67,17 @@ impl Sqlite {
         }
         false
     }
+
+    pub fn get<T>(conn: &Connection, query: &GQuery) -> Result<Vec<Vec<T>>>
+    where
+        T: FromSql + Send + 'static,
+    {
+        let (sql, params) = Self::convertGToSql(query);
+        Self::retrieve::<T>(conn, sql.as_str(), Some(params))
+    }
     
     pub fn execute<P: rusqlite::Params>(conn: &Connection, sql: &str, params: P) -> bool {
+        println!("tyd {}", sql);
         let execution_result = conn.execute(
             sql,
             params
@@ -84,13 +89,13 @@ impl Sqlite {
         true
     }
 
-    pub fn retrieve<T>(conn: &Connection, sql: &str) -> Result<Vec<Vec<T>>>
+    pub fn retrieve<T>(conn: &Connection, sql: &str, params: Option<Vec<&dyn rusqlite::ToSql>>) -> Result<Vec<Vec<T>>>
     where
         T: FromSql + Send + 'static,
     {
         let mut stmt = conn.prepare(sql)?;
 
-        let rows = stmt.query_map([], |row| {
+        let rows = stmt.query_map(params.as_deref().unwrap_or(&[]), |row| {
             let column_count = row.as_ref().column_names().len();
             let mut result_row = Vec::with_capacity(column_count); 
 
@@ -109,7 +114,7 @@ impl Sqlite {
         Ok(results) 
     }
 
-    fn convertAToSql(query: &AQuery) -> String {
+    fn convertAToSql(query: &AQuery) -> (String, Vec<&dyn rusqlite::ToSql>) {
         match query {
             AQuery::User { 
                 username, 
@@ -118,24 +123,30 @@ impl Sqlite {
                 email, 
                 site 
             } => {
-                format!("INSERT INTO ")
+                (String::from(
+                    "INSERT INTO users (userame, password, name, email, site) VALUES (?1, ?2, ?3, ?4, ?5)"), 
+                    vec![username, password, name, email, site]
+                )
             },
             AQuery::UserPing { 
                 username, 
                 site 
             } => {
-                format!("")
+                (String::from(
+                    "UPDATE users SET site=?1 WHERE username=?2"), 
+                    vec![site, username]
+                )
             }
         }
     }
 
-    fn convertGToSql(query: &GQuery) -> String {
+    fn convertGToSql(query: &GQuery) -> (String, Vec<&dyn rusqlite::ToSql>) {
         match query {
             GQuery::Password { username } => {
-                String::from("Select password From users")
+                (String::from("Select password From users WHERE username = ?1"), vec![username as &dyn rusqlite::ToSql])
             },
             GQuery::UserData { username } => {
-                String::from("SELECT password FROM users")
+                (String::from("Select name,email From users WHERE username = ?1"), vec![username as &dyn rusqlite::ToSql])
             }
         }
     }

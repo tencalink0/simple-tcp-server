@@ -38,12 +38,14 @@ pub enum GQuery {
     } // username -> [name, email]
 }
 
+#[derive(Debug)]
 pub enum DatabaseType {
     Sqlite(Connection),
     Textfile(PathBuf),
     None
 }
 
+#[derive(Debug)]
 pub struct Database {
     pub conn: DatabaseType
 }
@@ -71,13 +73,35 @@ impl Database {
         }
     }
 
+    pub fn get<T>(&self, query: &GQuery) -> Result<Vec<Vec<T>>, Box<dyn Error>> 
+    where
+        T: FromSql + Send + 'static,
+    {
+        match &self.conn {
+            DatabaseType::Sqlite(conn) => {
+                match Sqlite::get::<T>(&conn, query) {
+                    Ok(values) => {
+                        Ok(values)
+                    },
+                    Err(e) => {
+                        println!("Failed2: {}", e);
+                        Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Failed")))
+                    }
+                }
+            },
+            _ => {
+                Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Database type not implemented")))
+            }
+        }
+    }
+
     pub fn get_data<T>(&self, sql: &str) -> Result<Vec<Vec<T>>, Box<dyn Error>> 
     where
         T: FromSql + Send + 'static,
     {
         match &self.conn {
             DatabaseType::Sqlite(conn) => {
-                match Sqlite::retrieve::<T>(&conn, sql) {
+                match Sqlite::retrieve::<T>(&conn, sql, None) {
                     Ok(values) => {
                         Ok(values)
                     }
