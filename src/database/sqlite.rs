@@ -77,7 +77,6 @@ impl Sqlite {
     }
     
     pub fn execute<P: rusqlite::Params>(conn: &Connection, sql: &str, params: P) -> bool {
-        println!("tyd {}", sql);
         let execution_result = conn.execute(
             sql,
             params

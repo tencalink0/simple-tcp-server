@@ -6,6 +6,8 @@ mod database;
 use std::net::{TcpListener, TcpStream, IpAddr, SocketAddr};
 use std::io::prelude::*;
 use local_ip_address::local_ip;
+use serde::{Deserialize};
+use serde_json;
 
 use server::response::Response;
 use tools::filesystem::FileSystem;
@@ -25,6 +27,12 @@ pub struct Server {
     pub ip: IpAddr,
     pub port: u16,
     pub state: State,
+}
+
+#[derive(Deserialize)]
+struct Credentials {
+    username: String,
+    password: String,
 }
 
 impl Server {
@@ -73,7 +81,6 @@ impl Server {
         let connection_info = Self::get_connection_info(&mut stream);
 
         let mut response = Response::new(&self.filesystem);
-
         match connection_info.clone() {
             Some(conn_info) => {
                 if conn_info.r#type == "GET".to_string() {
@@ -84,39 +91,70 @@ impl Server {
                             response.format_file(
                                 String::from("index.html")
                             );
-                        } else if this_conn_str == "login" {
-                            response.format_file(
-                                String::from("index.html")
-                            );
-                            let query = GQuery::Password { username: (String::from("admin")) };
-                            match self.database.get::<String>(&query) {
-                                Ok(data) => {
-                                    for value in data {
-                                        println!("Data {:?}", value)
-                                    }
-                                },
-                                Err(e) => {
-                                    println!("Error: {}", e);
-                                }
-                            }
-                            println!("Hello");
                         } else {
                             response.format_file(
                                 conn_info.file
                             );
                         }
                     }
+                } else if conn_info.r#type == "POST".to_string() {
+                    let parsed_json: serde_json::Value = serde_json::from_str(&conn_info.body).unwrap();
+                    let this_conn_str = conn_info.file.as_str();
+                    if this_conn_str == "login" {
+                        let username = parsed_json.get("username");
+                        let password = parsed_json.get("password");
+                        if username.is_none() || password.is_none() {
+                            response.format_404();
+                        } else {
+                            let str_username = username.unwrap().as_str().unwrap();
+                            let str_password = password.unwrap().as_str().unwrap();
+                            username.unwrap();
+                            response.format_file(
+                                String::from("index.html")
+                            );
+                            let query = GQuery::Password { username: str_username.to_string() };
+                            match self.database.get::<String>(&query) {
+                                Ok(data) => {
+                                    println!("{:?}", data);
+                                    let mut login_state = false;
+                                    let username = String::new();
+                                    for login in data {
+                                        println!("Data {:?}, {}", login[0], str_password);
+                                        if str_password == login[0] {
+                                            login_state = true;
+                                            break;
+                                        }
+                                        if login_state {break;};
+                                    }
+                                    if login_state {
+                                        println!("part1");
+                                        response.format_status("ok");
+                                    } else {
+                                        println!("part2");
+                                        response.format_error(403, "Forbidden");
+                                        //response.format_404();
+                                    }
+
+                                },
+                                Err(e) => {
+                                    println!("Error: {}", e);
+                                    response.format_404();
+                                }
+                            }
+                        }
+                    } else{
+                        response.format_404();
+                    }
                 } else {
-                    response.format_error();
+                    response.format_404();
                 }
             },
             None => {
-                response.format_error();
+                response.format_404();
             }
         }
 
         Self::display_connection(&connection_info, &response.status_line);
-
         stream.write(response.response_data.as_bytes()).unwrap();
         stream.flush().unwrap();
         self.state = State::Idle;
@@ -125,7 +163,7 @@ impl Server {
     fn get_connection_info(stream: &mut TcpStream) -> Option<ConnectionData> {
         let mut buffer = [0; 1024];
         let bytes_read = stream.read(&mut buffer).unwrap();
-    
+
         let binding = 
             String::from_utf8_lossy(&buffer[..bytes_read])
                 .to_string();
@@ -157,11 +195,17 @@ impl Server {
             Err(_) => None
         };
 
+        let body: String = match request_details.last() {
+            Some(body) => {body.clone()}
+            None => "".to_string()
+        };
+
         let connection_info = ConnectionData {
             r#type: request_type[0].trim().to_string(),
             file: request_file[0].trim().to_string(),
             method: request_file[1].trim().to_string(),
-            conn_ip: this_ip
+            conn_ip: this_ip,
+            body: body
         };
 
         Some(connection_info)
@@ -195,5 +239,6 @@ pub struct ConnectionData {
     pub r#type: String,
     pub file: String,
     pub method: String,
-    pub conn_ip: Option<SocketAddr>
+    pub conn_ip: Option<SocketAddr>,
+    pub body: String
 }

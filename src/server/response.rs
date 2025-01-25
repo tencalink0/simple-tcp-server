@@ -27,14 +27,28 @@ impl<'a> Response<'a> {
                 self.response_data = Self::format_response(self);
             },
             None => { 
-                self.response_data = Self::format_error(self);
+                self.response_data = Self::error(self, 404, "NOT FOUND");
             }
         };
     }
 
-    pub fn format_error(&mut self) -> String {
-        self.status_line = String::from("HTTP/1.1 404 NOT FOUND");
-        self.contents = String::from("NOT FOUND");
+    pub fn format_status(&mut self, message: &str) {
+        self.status_line = String::from("HTTP/1.1 200");
+        self.contents = message.to_string();
+        self.response_data = Self::format_response(self);
+    }
+
+    pub fn format_404(&mut self) {
+        self.response_data = Self::error(self, 404, "NOT FOUND");
+    }
+
+    pub fn format_error(&mut self, error_type: usize, error_msg: &str) {
+        self.response_data = Self::error(self, error_type, error_msg)
+    } 
+
+    fn error(&mut self, error_type: usize, error_msg: &str) -> String {
+        self.status_line = format!("HTTP/1.1 {} {}", error_type, error_msg);
+        self.contents = error_msg.to_string();
         Self::format_response(&self)
     }
 
