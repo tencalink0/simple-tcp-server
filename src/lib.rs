@@ -6,10 +6,11 @@ mod database;
 use std::net::{TcpListener, TcpStream, IpAddr, SocketAddr};
 use std::io::prelude::*;
 use local_ip_address::local_ip;
+use std::collections::HashMap;
 use serde::{Deserialize};
 use serde_json;
 
-use server::response::Response;
+use server::response::{Response, ResponseStatus};
 use tools::filesystem::FileSystem;
 use login::login::Login;
 use login::encrypt::{Keys, Encrypt, Decrypt};
@@ -21,9 +22,15 @@ pub enum State {
     Processing
 }
 
+#[derive(Hash, Eq, PartialEq, Debug)]
+enum DatabaseID {
+    Login,
+    Logs,
+}
+
 pub struct Server {
     filesystem: FileSystem,
-    database: Database,
+    databases: HashMap<DatabaseID, Database>,
     pub ip: IpAddr,
     pub port: u16,
     pub state: State,
@@ -42,11 +49,14 @@ impl Server {
             Some(num) => num,
             None => 7878
         };        
-        let database = Database::connect(false);
-        println!("Database {:?}", database);
+        let mut databases: HashMap<DatabaseID, Database> = HashMap::new();
+        databases.insert(DatabaseID::Login, Database::connect(true, "logins"));
+        databases.insert(DatabaseID::Logs, Database::connect(true, "logs"));
+        println!("Databases {:?}", databases);
+
         Self {
             filesystem,
-            database,
+            databases,
             ip,
             port,
             state: State::Off
@@ -78,7 +88,7 @@ impl Server {
     fn handle_connection(&mut self, mut stream:TcpStream) {
         self.state = State::Processing;
 
-        let connection_info = Self::get_connection_info(&mut stream);
+        let (connection_info, raw_connection) = Self::get_connection_info(&mut stream);
 
         let mut response = Response::new(&self.filesystem);
         match connection_info.clone() {
@@ -113,33 +123,33 @@ impl Server {
                                 String::from("index.html")
                             );
                             let query = GQuery::Password { username: str_username.to_string() };
-                            match self.database.get::<String>(&query) {
-                                Ok(data) => {
-                                    println!("{:?}", data);
-                                    let mut login_state = false;
-                                    let username = String::new();
-                                    for login in data {
-                                        println!("Data {:?}, {}", login[0], str_password);
-                                        if str_password == login[0] {
-                                            login_state = true;
-                                            break;
+                            let login_database =  self.databases.get(&DatabaseID::Login);
+                            match login_database {
+                                Some(database) => {
+                                    match database.get::<String>(&query) {
+                                        Ok(data) => {
+                                            let mut login_state = false;
+                                            for login in data {
+                                                if str_password == login[0] {
+                                                    login_state = true;
+                                                    break;
+                                                }
+                                                if login_state {break;}
+                                            }
+                                            if login_state {
+                                                response.format_status("ok");
+                                            } else {
+                                                response.format_error(403, "Forbidden");
+                                            }
+        
+                                        },
+                                        Err(e) => {
+                                            println!("Error: {}", e);
+                                            response.format_404();
                                         }
-                                        if login_state {break;};
                                     }
-                                    if login_state {
-                                        println!("part1");
-                                        response.format_status("ok");
-                                    } else {
-                                        println!("part2");
-                                        response.format_error(403, "Forbidden");
-                                        //response.format_404();
-                                    }
-
                                 },
-                                Err(e) => {
-                                    println!("Error: {}", e);
-                                    response.format_404();
-                                }
+                                None => response.format_404()
                             }
                         }
                     } else{
@@ -154,13 +164,13 @@ impl Server {
             }
         }
 
-        Self::display_connection(&connection_info, &response.status_line);
+        Self::display_connection(&connection_info, &response, &raw_connection);
         stream.write(response.response_data.as_bytes()).unwrap();
         stream.flush().unwrap();
         self.state = State::Idle;
     }
 
-    fn get_connection_info(stream: &mut TcpStream) -> Option<ConnectionData> {
+    fn get_connection_info(stream: &mut TcpStream) -> (Option<ConnectionData>, Option<Vec<String>>) {
         let mut buffer = [0; 1024];
         let bytes_read = stream.read(&mut buffer).unwrap();
 
@@ -173,7 +183,7 @@ impl Server {
             .collect();
         
         if request_details.len() <= 0 {
-            return None;
+            return (None, None);
         }
 
         let request_type: Vec<String> = request_details[0]
@@ -182,7 +192,7 @@ impl Server {
             .collect(); 
         
         if request_type.len() <= 0 {
-            return None;
+            return (None, None);
         }
 
         let request_file: Vec<String> = request_type[1]
@@ -208,15 +218,15 @@ impl Server {
             body: body
         };
 
-        Some(connection_info)
+        (Some(connection_info), Some(request_details))
     }
 
-    fn display_connection(connection_info: &Option<ConnectionData>, status_line: &String) {
-        let error_404 = String::from("HTTP/1.1 404 NOT FOUND");
-        let conn_color = if status_line == &error_404 {
-            "\x1b[33m"
-        } else { 
-            "\x1b[32m"
+    fn display_connection(connection_info: &Option<ConnectionData>, response: &Response, raw_connection: &Option<Vec<String>>) {
+        let conn_color = match response.response_status {
+            ResponseStatus::Ok => "\x1b[32m",
+            ResponseStatus::Failed => "\x1b[33m",
+            ResponseStatus::Denied => "\x1b[31m",
+            ResponseStatus::Unknown => "\x1b[34m"
         };
         match connection_info {
             Some(conn_info) => {
@@ -226,10 +236,10 @@ impl Server {
                 };
                 match conn_info.conn_ip {
                     Some(ip) => println!("{}{:?} - {}\x1b[0m", conn_color, ip, addr),
-                    None => println!("\x1b[31mUnknown - {}\x1b[0m", addr),
+                    None => println!("{}Unknown - {}\x1b[0m", conn_color, addr),
                 }
             },
-            None => println!("\x1b[31mUnknown connection\x1b[0m"),
+            None => println!("{}Unknown connection\x1b[0m", conn_color),
         }
     }
 }

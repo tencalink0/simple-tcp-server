@@ -51,8 +51,8 @@ pub struct Database {
 }
 
 impl Database {
-    pub fn connect(fail_safe: bool) -> Self { //Fail safe switches to textfile database if it cannot find the sql server
-        match Sqlite::open("logins.db") {
+    pub fn connect(fail_safe: bool, file_name: &str) -> Self { //Fail safe switches to textfile database if it cannot find the sql server
+        match Sqlite::open(format!("{file_name}.db").as_str()) {
             Ok(connection) => {
                 if Sqlite::init(&connection) {
                     Self { conn: DatabaseType::Sqlite(connection) }
@@ -62,7 +62,7 @@ impl Database {
             },
             Err(_) => {
                 if fail_safe {
-                    match TextFile::open("logins.txt") {
+                    match TextFile::open(format!("{file_name}.txt").as_str()) {
                         Ok(path_buf) => Self { conn: DatabaseType::Textfile(path_buf) },
                         Err(_) => Self { conn: DatabaseType::None },
                     }

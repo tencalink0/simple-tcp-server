@@ -5,7 +5,16 @@ pub struct Response<'a> {
     filesystem: &'a FileSystem,
     pub status_line: String,
     pub contents: String,
-    pub response_data: String
+    pub response_data: String,
+    pub response_status: ResponseStatus
+}
+
+#[derive(Debug)]
+pub enum ResponseStatus {
+    Ok, // 200
+    Failed, // 404
+    Denied, // 403
+    Unknown 
 }
 
 impl<'a> Response<'a> {
@@ -15,7 +24,8 @@ impl<'a> Response<'a> {
             filesystem: filesystem,
             status_line: empty_string.clone(),
             contents: empty_string.clone(),
-            response_data: empty_string
+            response_data: empty_string,
+            response_status: ResponseStatus::Unknown
         }
     }
 
@@ -25,9 +35,11 @@ impl<'a> Response<'a> {
             Some(contents) => {
                 self.contents = contents;
                 self.response_data = Self::format_response(self);
+                self.response_status = ResponseStatus::Ok;
             },
             None => { 
                 self.response_data = Self::error(self, 404, "NOT FOUND");
+                self.response_status = ResponseStatus::Failed;
             }
         };
     }
@@ -36,6 +48,7 @@ impl<'a> Response<'a> {
         self.status_line = String::from("HTTP/1.1 200");
         self.contents = message.to_string();
         self.response_data = Self::format_response(self);
+        self.response_status = ResponseStatus::Ok;
     }
 
     pub fn format_404(&mut self) {
@@ -43,7 +56,11 @@ impl<'a> Response<'a> {
     }
 
     pub fn format_error(&mut self, error_type: usize, error_msg: &str) {
-        self.response_data = Self::error(self, error_type, error_msg)
+        self.response_status = match error_type {
+            403 => ResponseStatus::Denied,
+            _ => ResponseStatus::Failed
+        };
+        self.response_data = Self::error(self, error_type, error_msg);
     } 
 
     fn error(&mut self, error_type: usize, error_msg: &str) -> String {
