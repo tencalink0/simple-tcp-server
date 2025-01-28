@@ -23,6 +23,11 @@ pub enum AQuery {
         email: Option<String>,
         site: Option<String>,
     }, // username, password, opt<name>, opt<email>, opt<site>
+    UserIDAdd {
+        username: String,
+        password: String,
+        id: String
+    },
     UserPing {
         username: String,
         site: String,
@@ -54,7 +59,7 @@ impl Database {
     pub fn connect(fail_safe: bool, file_name: &str) -> Self { //Fail safe switches to textfile database if it cannot find the sql server
         match Sqlite::open(format!("{file_name}.db").as_str()) {
             Ok(connection) => {
-                if Sqlite::init(&connection) {
+                if Sqlite::init(&connection, true) {
                     Self { conn: DatabaseType::Sqlite(connection) }
                 } else {
                     Self { conn: DatabaseType::None }

@@ -3,6 +3,8 @@ use rusqlite::types::FromSql;
 
 use crate::tools::filesystem::FileSystem;
 use crate::database::db::{AQuery, GQuery};
+use crate::DatabaseID;
+use crate::tools::config::{CONFIG};
 
 pub struct Sqlite;
 
@@ -12,7 +14,7 @@ impl Sqlite {
             Some(path_buf) => {
                 match Connection::open(path_buf) {
                     Ok(conn) => {
-                        if Self::init(&conn) {
+                        if Self::init(&conn, true) {
                             Ok(conn)
                         } else {
                             Err(Error::ExecuteReturnedResults)
@@ -26,7 +28,7 @@ impl Sqlite {
 
     }
 
-    pub fn init(conn: &Connection) -> bool {
+    pub fn init(conn: &Connection, refresh: bool) -> bool {
         let table_names: Result<Vec<String>> = conn
         .prepare("SELECT name FROM sqlite_master WHERE type='table'")
         .and_then(|mut stmt| {
@@ -46,7 +48,7 @@ impl Sqlite {
             }
             Err(_) => false, 
         };
-        if status {
+        if status && CONFIG.get().and_then(|config| config.get("auto_refresh")).and_then(|v| v.as_bool()).unwrap_or(false) {
             if Self::execute(
                 &conn, 
                 "CREATE TABLE IF NOT EXISTS users (
@@ -125,6 +127,16 @@ impl Sqlite {
                 (String::from(
                     "INSERT INTO users (userame, password, name, email, site) VALUES (?1, ?2, ?3, ?4, ?5)"), 
                     vec![username, password, name, email, site]
+                )
+            },
+            AQuery::UserIDAdd { 
+                username, 
+                password,
+                id 
+            } => {
+                (String::from(
+                    "UPDATE users SET id=?1 WHERE username=?2 AND password=?3"), 
+                    vec![id, username, password]
                 )
             },
             AQuery::UserPing { 

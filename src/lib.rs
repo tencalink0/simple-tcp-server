@@ -6,6 +6,7 @@ mod database;
 use std::net::{TcpListener, TcpStream, IpAddr, SocketAddr};
 use std::io::prelude::*;
 use local_ip_address::local_ip;
+use tools::config::load_config;
 use std::collections::HashMap;
 use serde::{Deserialize};
 use serde_json;
@@ -53,6 +54,8 @@ impl Server {
         databases.insert(DatabaseID::Login, Database::connect(true, "logins"));
         databases.insert(DatabaseID::Logs, Database::connect(true, "logs"));
         println!("Databases {:?}", databases);
+
+        load_config("config.json");
 
         Self {
             filesystem,
