@@ -16,6 +16,16 @@ pub enum DType {
     Integer
 }
 
+impl DType {
+    pub fn as_sql(&self) -> &'static str {
+        match self {
+            DType::Bool => "Boolean",
+            DType::String => "TEXT",
+            DType::Integer => "INTEGER"
+        }
+    }
+}
+
 lazy_static! { // Handling runtime-initialized static data
     pub static ref DATA: Vec<(String, Value, DType)> = vec![
         ("auto_reset".to_string(), Value::Bool(true), DType::Bool),
@@ -53,12 +63,15 @@ pub fn load_config(path: &str) {
     }
 }
 
-pub fn get_config() -> &'static HashMap<String, Value> {
-    CONFIG.get().expect("CONFIG is not initialized")
+pub fn get_config(query: &str) -> Option<Value> {
+    if let Some(config) = CONFIG.get() {
+        config.get(query).cloned()
+    } else {
+        None
+    }
 }
 
 fn validate_config(config: &HashMap<String, Value>) -> bool {
-    println!("{:?}", config);
     for (key, value, dtype) in DATA.iter() {
         match config.get(key) {
             Some(value) => {

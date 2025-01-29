@@ -2,10 +2,16 @@ use std::{error::Error, path::PathBuf};
 use rusqlite::types::FromSql;
 
 use crate::database::sqlite::Sqlite;
+use crate::tools::config::DType;
 use rusqlite::Connection;
 
 use super::textfile::TextFile;
 
+pub struct DatabaseStruct<'a> {
+    pub src: &'a str,
+    pub items: Vec<(String, DType)>,
+    pub onload: &'a str
+}
 
 pub trait DatabaseConnection {
     fn open() -> bool;
@@ -56,10 +62,10 @@ pub struct Database {
 }
 
 impl Database {
-    pub fn connect(fail_safe: bool, file_name: &str) -> Self { //Fail safe switches to textfile database if it cannot find the sql server
-        match Sqlite::open(format!("{file_name}.db").as_str()) {
+    pub fn connect(this_db: DatabaseStruct, fail_safe: bool) -> Self { //Fail safe switches to textfile database if it cannot find the sql server
+        match Sqlite::open(format!("{}.db", this_db.src).as_str()) {
             Ok(connection) => {
-                if Sqlite::init(&connection, true) {
+                if Sqlite::init(&connection, this_db) {
                     Self { conn: DatabaseType::Sqlite(connection) }
                 } else {
                     Self { conn: DatabaseType::None }
@@ -67,7 +73,7 @@ impl Database {
             },
             Err(_) => {
                 if fail_safe {
-                    match TextFile::open(format!("{file_name}.txt").as_str()) {
+                    match TextFile::open(format!("{}.txt", this_db.src).as_str()) {
                         Ok(path_buf) => Self { conn: DatabaseType::Textfile(path_buf) },
                         Err(_) => Self { conn: DatabaseType::None },
                     }

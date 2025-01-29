@@ -1,10 +1,13 @@
+use rusqlite::ffi::sqlite3_index_info_sqlite3_index_constraint_usage;
 use rusqlite::{Connection, Result, Error};
 use rusqlite::types::FromSql;
-
+use serde_json::Value;
 use crate::tools::filesystem::FileSystem;
 use crate::database::db::{AQuery, GQuery};
 use crate::DatabaseID;
-use crate::tools::config::{CONFIG};
+use crate::tools::config::{get_config};
+
+use super::db::DatabaseStruct;
 
 pub struct Sqlite;
 
@@ -12,43 +15,49 @@ impl Sqlite {
     pub fn open(path: &str) -> Result<Connection, Error> {
         match FileSystem::check_file_availability(path.to_string(), "db".to_string()) {
             Some(path_buf) => {
-                match Connection::open(path_buf) {
-                    Ok(conn) => {
-                        if Self::init(&conn, true) {
-                            Ok(conn)
-                        } else {
-                            Err(Error::ExecuteReturnedResults)
-                        }
-                    },
-                    Err(e) => Err(e)
-                }
+                Connection::open(path_buf)
             },
             None => Err(Error::ExecuteReturnedResults)
         }
 
     }
 
-    pub fn init(conn: &Connection, refresh: bool) -> bool {
+    pub fn init(conn: &Connection, this_db: DatabaseStruct) -> bool {
         let table_names: Result<Vec<String>> = conn
         .prepare("SELECT name FROM sqlite_master WHERE type='table'")
         .and_then(|mut stmt| {
             stmt.query_map([], |row| row.get(0))
                 .and_then(|mapped| mapped.collect())
         });
-        let status = match table_names {
-            Ok(names) => {
-                for table_name in names {
-                    if table_name != "sqlite_sequence" {
-                        if let Err(_) = conn.execute(&format!("DROP TABLE IF EXISTS {}", table_name), []) {
-                            return false; 
+        let auto_reset_state = get_config("auto_reset")
+            .unwrap_or(Value::Bool(false))
+            .as_bool()
+            .unwrap_or(false);
+
+        let mut status = false;
+        if auto_reset_state {
+            status = match table_names {
+                Ok(names) => {
+                    for table_name in names {
+                        if table_name != "sqlite_sequence" {
+                            if let Err(_) = conn.execute(&format!("DROP TABLE IF EXISTS {}", table_name), []) {
+                                return false; 
+                            }
                         }
                     }
+                    true
                 }
-                true
-            }
-            Err(_) => false, 
-        };
-        if status && CONFIG.get().and_then(|config| config.get("auto_refresh")).and_then(|v| v.as_bool()).unwrap_or(false) {
+                Err(_) => false, 
+            };
+        }
+
+        if status && auto_reset_state {
+            let sql_string = this_db.items
+                .iter()
+                .map(|(str, dtype)| {format!("{} {}", str, dtype.as_sql())})
+                .collect::<Vec<String>>()
+                .join(", ");
+
             if Self::execute(
                 &conn, 
                 "CREATE TABLE IF NOT EXISTS users (

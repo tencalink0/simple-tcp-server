@@ -50,12 +50,13 @@ impl Server {
             Some(num) => num,
             None => 7878
         };        
+
+        load_config("config.json");
+
         let mut databases: HashMap<DatabaseID, Database> = HashMap::new();
         databases.insert(DatabaseID::Login, Database::connect(true, "logins"));
         databases.insert(DatabaseID::Logs, Database::connect(true, "logs"));
         println!("Databases {:?}", databases);
-
-        load_config("config.json");
 
         Self {
             filesystem,
